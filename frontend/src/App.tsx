@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { isConnected, isAllowed, setAllowed, getUserInfo, getNetworkDetails } from '@stellar/freighter-api';
+import { isConnected, isAllowed, setAllowed, getAddress, getNetwork } from '@stellar/freighter-api';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Wallet, ShieldCheck, Clock, ArrowRight, Loader2, AlertCircle, CheckCircle2, ChevronRight, ExternalLink } from 'lucide-react';
 
@@ -15,7 +15,8 @@ export default function App() {
   useEffect(() => {
     const initFreighter = async () => {
       try {
-        const connected = await isConnected();
+        const result = await isConnected();
+        const connected = typeof result === 'boolean' ? result : result.isConnected;
         setHasFreighter(connected);
         
         if (connected) {
@@ -33,11 +34,11 @@ export default function App() {
 
   const fetchUserInfo = async () => {
     try {
-      const userInfo = await getUserInfo();
-      if (userInfo && userInfo.publicKey) {
-        setWalletAddress(userInfo.publicKey);
-        const networkDetails = await getNetworkDetails();
-        setNetwork(networkDetails.network);
+      const result = await getAddress();
+      if (result && result.address) {
+        setWalletAddress(result.address);
+        const networkResult = await getNetwork();
+        setNetwork(networkResult.network);
       }
     } catch (err) {
       console.error("Error fetching user info:", err);
