@@ -2,11 +2,11 @@
 @import "tailwindcss";
 
 @theme {
-  --color-bauhaus-bg: #EAE8E3;
-  --color-bauhaus-red: #D92525;
-  --color-bauhaus-blue: #1C3B7B;
-  --color-bauhaus-yellow: #EBB61A;
-  --color-bauhaus-black: #111111;
+  --color-bauhaus-bg: #F8F9FA;
+  --color-bauhaus-red: #E63946;
+  --color-bauhaus-blue: #1D3557;
+  --color-bauhaus-yellow: #E9C46A;
+  --color-bauhaus-black: #2B2D42;
   --color-bauhaus-white: #ffffff;
 }
 
@@ -25,11 +25,11 @@
 }
 
 .bauhaus-btn-primary {
-  @apply bg-bauhaus-red text-white font-bold uppercase tracking-[0.2em] text-xs px-8 py-4 hover:bg-red-800 transition-colors inline-block text-center cursor-pointer;
+  @apply bg-bauhaus-red text-white font-bold uppercase tracking-[0.2em] text-xs px-8 py-4 hover:bg-[#d62828] transition-colors inline-block text-center cursor-pointer;
 }
 
 .bauhaus-btn-secondary {
-  @apply bg-bauhaus-blue text-white font-bold uppercase tracking-[0.2em] text-xs px-8 py-4 hover:bg-blue-900 transition-colors inline-block text-center cursor-pointer;
+  @apply bg-bauhaus-blue text-white font-bold uppercase tracking-[0.2em] text-xs px-8 py-4 hover:bg-[#14213d] transition-colors inline-block text-center cursor-pointer;
 }
 
 .bauhaus-input {
