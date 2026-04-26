@@ -22,7 +22,7 @@ jobs:
           targets: wasm32-unknown-unknown
 
       - name: Install Stellar CLI
-        run: cargo install --locked stellar-cli --version 20.0.0
+        run: cargo install --locked stellar-cli
 
       - name: Build Contract
         run: |

@@ -7,7 +7,7 @@
 ## The Friction: Why StipeStream?
 **The Scenario:** Maria is a senior computer science student at a university in Metro Manila. Her monthly living allowance from a local scholarship NGO is her only way to pay for her daily commute and meals. When the NGO’s accounting department faces a "bureaucratic bottleneck," Maria’s funds are delayed by two weeks. 
 
-This delay costs her **$15 in late rent penalties** and forces her to **skip at least one meal a day** to stretch her remaining cash. With StipeStream, the NGO locks the funds once at the start of the semester, and Maria withdraws her $100 allowance exactly every 30 days—no administrative delays, no late fees, no skipped meals.
+This delay costs her **₱750 in late rent penalties** and forces her to **skip at least one meal a day** to stretch her remaining cash. With StipeStream, the NGO locks the funds once at the start of the semester, and Maria withdraws her ₱5,000 allowance exactly every 30 days—no administrative delays, no late fees, no skipped meals.
 
 ---
 
