@@ -1,0 +1,11 @@
+target/
+node_modules/
+.DS_Store
+*.log
+dist/
+.env
+.soroban/
+frontend/node_modules/
+frontend/dist/
+frontend/screenshot.cjs
+frontend/screenshot_lab.cjs
