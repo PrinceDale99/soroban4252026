@@ -460,7 +460,12 @@ function StudentDashboard({ triggerTx, state, verifyFn, claimFn, walletAddress }
     if (seconds <= 0) return "Ready";
     const d = Math.floor(seconds / (3600 * 24));
     const h = Math.floor((seconds % (3600 * 24)) / 3600);
-    return `${d}d ${h}h`;
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
+    
+    if (d > 0) return `${d}d ${h}h ${m}m`;
+    if (h > 0) return `${h}h ${m}m ${s}s`;
+    return `${m}m ${s}s`;
   };
 
   const isClaimReady = walletAddress && state.isVerified && timeLeft === 0 && state.totalBalance >= state.payoutAmount && state.payoutAmount > 0;
