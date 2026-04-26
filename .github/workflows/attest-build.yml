@@ -1,0 +1,41 @@
+name: Attest Soroban Build
+
+on:
+  push:
+    branches: [ "main" ]
+
+permissions:
+  id-token: write
+  contents: read
+  attestations: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Install Stellar CLI
+        run: cargo install --locked stellar-cli --version 20.0.0
+
+      - name: Build Contract
+        run: |
+          cd contracts/hello-world
+          stellar contract build
+
+      - name: Generate SLSA Attestation
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-path: 'contracts/hello-world/target/wasm32-unknown-unknown/release/stipestream.wasm'
+
+      - name: Upload WASM Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: stipestream-wasm
+          path: 'contracts/hello-world/target/wasm32-unknown-unknown/release/stipestream.wasm'

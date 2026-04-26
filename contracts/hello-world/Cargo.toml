@@ -2,6 +2,8 @@
 name = "stipestream"
 version = "0.1.0"
 edition = "2021"
+repository = "https://github.com/PrinceDale99/StripeSpend"
+homepage = "https://PrinceDale99.github.io/StripeSpend/"
 
 [dependencies]
 soroban-sdk = "20.0.0"
