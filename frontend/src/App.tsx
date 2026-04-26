@@ -240,13 +240,13 @@ export default function App() {
           </nav>
         </div>
 
-        <div className="bg-bauhaus-yellow dark:bg-yellow-500 p-4 md:p-6 flex items-center justify-center w-full md:w-auto gap-4 md:min-w-[250px]">
-          <button onClick={() => setIsDarkMode(!isDarkMode)} className="p-2 border-4 border-bauhaus-black dark:border-gray-900 rounded-full hover:bg-white/20 transition-colors">
+        <div className="bg-bauhaus-yellow dark:bg-yellow-500 p-2 md:p-6 flex items-center justify-center w-full md:w-auto gap-3 md:gap-4">
+          <button onClick={() => setIsDarkMode(!isDarkMode)} className="p-2 border-2 md:border-4 border-bauhaus-black dark:border-gray-900 rounded-full hover:bg-white/20 transition-colors shrink-0">
             {isDarkMode ? <Sun className="w-4 h-4 text-gray-900" /> : <Moon className="w-4 h-4 text-bauhaus-black" />}
           </button>
           <button 
             onClick={() => walletAddress ? null : setShowConnectModal(true)}
-            className="w-full md:w-auto bg-bauhaus-black dark:bg-gray-900 text-bauhaus-white font-bold text-[10px] md:text-xs tracking-[0.2em] uppercase px-4 py-3 hover:bg-gray-800 dark:hover:bg-black transition-colors"
+            className="flex-grow md:w-auto bg-bauhaus-black dark:bg-gray-900 text-bauhaus-white font-bold text-[10px] md:text-xs tracking-[0.1em] md:tracking-[0.2em] uppercase px-3 py-2 md:px-4 md:py-3 hover:bg-gray-800 dark:hover:bg-black transition-colors truncate"
           >
             {walletAddress ? formatAddress(walletAddress) : 'Connect Wallet'}
           </button>
@@ -342,22 +342,10 @@ function LandingView({ setView, globalStats }: { setView: (v: any) => void, glob
         </button>
       </div>
 
-      <div className="col-span-1 md:col-span-12 border-4 border-bauhaus-black dark:border-gray-800 py-6 md:py-8 mt-8 md:mt-12 flex flex-col md:flex-row justify-around items-center bg-bauhaus-white dark:bg-gray-800 gap-6 md:gap-8 px-4 md:px-8">
-        <div className="text-center w-full md:w-auto">
-          <span className="font-black uppercase tracking-widest text-[10px] md:text-xs text-gray-400 block mb-1 md:mb-2">Built On</span>
-          <span className="text-sm md:text-xl font-bold uppercase tracking-wider text-bauhaus-black dark:text-white">Stellar Soroban</span>
-        </div>
-        <div className="w-full h-1 md:w-2 md:h-2 bg-bauhaus-red rounded-full md:hidden my-2"></div>
-        <div className="w-2 h-2 bg-bauhaus-red rounded-full hidden md:block"></div>
-        <div className="text-center w-full md:w-auto">
-          <span className="font-black uppercase tracking-widest text-[10px] md:text-xs text-gray-400 block mb-1 md:mb-2">Audited By</span>
-          <span className="text-sm md:text-xl font-bold uppercase tracking-wider text-bauhaus-black dark:text-white">CertiK & OpenZeppelin</span>
-        </div>
-        <div className="w-full h-1 md:w-2 md:h-2 bg-bauhaus-blue rounded-full md:hidden my-2"></div>
-        <div className="w-2 h-2 bg-bauhaus-blue rounded-full hidden md:block"></div>
-        <div className="text-center w-full md:w-auto">
-          <span className="font-black uppercase tracking-widest text-[10px] md:text-xs text-gray-400 block mb-1 md:mb-2">Partners</span>
-          <span className="text-sm md:text-xl font-bold uppercase tracking-wider text-bauhaus-black dark:text-white">Global Universities</span>
+      <div className="col-span-1 md:col-span-12 border-4 border-bauhaus-black dark:border-gray-800 py-6 md:py-8 mt-8 md:mt-12 flex justify-center items-center bg-bauhaus-white dark:bg-gray-800 px-4 md:px-8">
+        <div className="text-center">
+          <span className="font-black uppercase tracking-widest text-[10px] md:text-xs text-gray-400 block mb-1 md:mb-2 text-center">Built On</span>
+          <span className="text-sm md:text-xl font-bold uppercase tracking-wider text-bauhaus-black dark:text-white block text-center">Stellar Soroban</span>
         </div>
       </div>
     </div>
@@ -518,18 +506,18 @@ function DonorDashboard({ triggerTx, depositFn, globalStats }: { triggerTx: any,
         <h2 className="text-lg md:text-xl font-bold tracking-[0.2em] uppercase mb-6 md:mb-8">One-Click Funding</h2>
         <div className="flex flex-col sm:flex-row gap-6">
            <div className="flex-1">
-             <label className="block text-[10px] md:text-xs font-bold tracking-[0.2em] uppercase mb-2 md:mb-4 text-bauhaus-yellow">Select Pool</label>
-             <select className="w-full bg-transparent border-b-4 border-white p-2 md:p-4 text-base md:text-xl font-bold focus:outline-none appearance-none">
+             <label className="block text-[10px] md:text-xs font-bold tracking-[0.1em] md:tracking-[0.2em] uppercase mb-2 md:mb-4 text-bauhaus-yellow">Select Pool</label>
+             <select className="w-full bg-transparent border-b-4 border-white p-2 md:p-4 text-sm md:text-xl font-bold focus:outline-none appearance-none">
                <option className="text-black">General Scholarship</option>
                <option className="text-black">STEM Scholars</option>
              </select>
            </div>
            <div className="flex-1">
-             <label className="block text-[10px] md:text-xs font-bold tracking-[0.2em] uppercase mb-2 md:mb-4 text-bauhaus-red dark:text-red-300">Deposit Amount (USDC)</label>
-             <input type="number" value={amount} onChange={e => setAmount(Number(e.target.value))} className="w-full bg-transparent border-b-4 border-white p-2 md:p-4 text-base md:text-xl font-bold focus:outline-none" />
+             <label className="block text-[10px] md:text-xs font-bold tracking-[0.1em] md:tracking-[0.2em] uppercase mb-2 md:mb-4 text-bauhaus-red dark:text-red-300">Deposit Amount (USDC)</label>
+             <input type="number" value={amount} onChange={e => setAmount(Number(e.target.value))} className="w-full bg-transparent border-b-4 border-white p-2 md:p-4 text-sm md:text-xl font-bold focus:outline-none" />
            </div>
         </div>
-        <button onClick={() => triggerTx('Smart Contract Deposit', handleDeposit)} className="mt-8 md:mt-12 bg-bauhaus-yellow text-bauhaus-black font-black uppercase tracking-[0.1em] md:tracking-[0.2em] py-4 md:py-6 px-6 md:px-12 border-4 border-bauhaus-black hover:bg-white transition-colors cursor-pointer w-full text-xs md:text-sm">
+        <button onClick={() => triggerTx('Smart Contract Deposit', handleDeposit)} className="mt-6 md:mt-12 bg-bauhaus-yellow text-bauhaus-black font-black uppercase tracking-[0.1em] md:tracking-[0.2em] py-3 md:py-6 px-4 md:px-12 border-4 border-bauhaus-black hover:bg-white transition-colors cursor-pointer w-full text-[10px] md:text-sm">
           Fund Protocol via Soroban
         </button>
       </div>
