@@ -30,7 +30,11 @@ StipeStream is designed around the **Bauhaus Design System**, emphasizing geomet
 Funds are locked in a Soroban escrow. Students can only withdraw their `payout_amount` after a 30-day interval has passed since their last claim. Human intervention is removed, eliminating administrative delays.
 
 ### 2. Risk-Free Demo Mode
-Explore the entire platform without spending real XLM. Demo Mode uses isolated `localStorage` keys and simulates transactions with realistic latencies and success modals. It comes pre-loaded with sample data (TVL: 12.5k USDC) for an instant presentation-ready feel.
+Explore the entire platform without spending real XLM or having a connected wallet. 
+- **Isolated Storage:** Demo actions use separate `localStorage` keys, ensuring your real on-chain data remains untouched.
+- **Simulated Transactions:** `executeRealSorobanTx` is bypassed, replacing wallet prompts with mock transaction hashes and realistic network delays.
+- **Pre-loaded State:** Instantly populates the dashboard with $12,500 TVL and 15 scholars to show the protocol in an "active" state.
+- **Safety First:** A mandatory disclaimer modal ensures users know their real funds are never at risk.
 
 ### 3. Persistent Dark Mode
 Full support for user-preferred theming. StipeStream remembers your choice between Light and Dark mode, using a premium charcoal palette that preserves the Bauhaus primary colors' vibrancy while reducing eye strain.
