@@ -465,10 +465,10 @@ function DonorDashboard({ triggerTx, depositFn, globalStats }: { triggerTx: any,
   return (
     <div className="grid grid-cols-1 md:grid-cols-12 gap-6 md:gap-8 animate-in fade-in duration-700">
       <div className="col-span-1 md:col-span-12 flex flex-col md:flex-row items-start md:items-center justify-between mb-4 border-b-4 md:border-b-8 border-bauhaus-black dark:border-gray-800 pb-6 md:pb-8">
-        <h1 className="text-4xl sm:text-5xl md:text-7xl font-black uppercase leading-none text-bauhaus-red dark:text-red-400">Sponsor<br className="hidden md:block"/>Dashboard</h1>
-        <div className="mt-4 md:mt-0 text-left md:text-right">
-          <div className="text-[10px] md:text-xs font-bold tracking-[0.2em] uppercase text-gray-500 dark:text-gray-400 mb-1 md:mb-2">Your Impact Level</div>
-          <div className="text-xl md:text-2xl font-black uppercase tracking-widest text-bauhaus-black dark:text-white">{globalStats.donorImpact}</div>
+        <h1 className="text-2xl sm:text-4xl md:text-7xl font-black uppercase leading-none text-bauhaus-red dark:text-red-400">Sponsor<br className="hidden md:block"/>Dashboard</h1>
+        <div className="mt-2 md:mt-0 text-left md:text-right">
+          <div className="text-[10px] md:text-xs font-bold tracking-[0.2em] uppercase text-gray-500 dark:text-gray-400 mb-1 md:mb-2">Your Impact</div>
+          <div className="text-lg md:text-2xl font-black uppercase tracking-widest text-bauhaus-black dark:text-white">{globalStats.donorImpact}</div>
         </div>
       </div>
 
@@ -481,24 +481,26 @@ function DonorDashboard({ triggerTx, depositFn, globalStats }: { triggerTx: any,
              <div className="text-xl md:text-2xl font-black">{globalStats.tvl.toLocaleString()} USDC</div>
            </div>
            
-           <div className="w-1 h-8 lg:w-8 lg:h-1 bg-bauhaus-black dark:bg-gray-600 my-2 lg:my-0"></div>
+           <div className="hidden lg:block w-8 h-1 bg-bauhaus-black dark:bg-gray-600"></div>
+           <div className="lg:hidden w-1 h-6 bg-bauhaus-black dark:bg-gray-600"></div>
 
            <div className="flex flex-col sm:flex-row lg:flex-col gap-4 w-full">
-             <div className="bg-bauhaus-white dark:bg-gray-900 border-4 border-bauhaus-black dark:border-gray-700 p-4 text-center flex-1">
-                <div className="text-[10px] md:text-xs font-bold tracking-widest uppercase text-bauhaus-red dark:text-red-400">Available Funds</div>
-                <div className="font-black text-sm md:text-base">{Math.floor(globalStats.tvl * 0.8).toLocaleString()} USDC</div>
+             <div className="bg-bauhaus-white dark:bg-gray-900 border-4 border-bauhaus-black dark:border-gray-700 p-3 md:p-4 text-center flex-1">
+                <div className="text-[10px] md:text-xs font-bold tracking-widest uppercase text-bauhaus-red dark:text-red-400">Available</div>
+                <div className="font-black text-xs md:text-base">{Math.floor(globalStats.tvl * 0.8).toLocaleString()} USDC</div>
              </div>
-             <div className="bg-bauhaus-white dark:bg-gray-900 border-4 border-bauhaus-black dark:border-gray-700 p-4 text-center flex-1">
+             <div className="bg-bauhaus-white dark:bg-gray-900 border-4 border-bauhaus-black dark:border-gray-700 p-3 md:p-4 text-center flex-1">
                 <div className="text-[10px] md:text-xs font-bold tracking-widest uppercase text-bauhaus-yellow dark:text-yellow-500">Distributed</div>
-                <div className="font-black text-sm md:text-base">{globalStats.distributedCount.toLocaleString()} Claims</div>
+                <div className="font-black text-xs md:text-base">{globalStats.distributedCount.toLocaleString()} Claims</div>
              </div>
            </div>
 
-           <div className="w-1 h-8 lg:w-8 lg:h-1 bg-bauhaus-black dark:bg-gray-600 my-2 lg:my-0"></div>
+           <div className="hidden lg:block w-8 h-1 bg-bauhaus-black dark:bg-gray-600"></div>
+           <div className="lg:hidden w-1 h-6 bg-bauhaus-black dark:bg-gray-600"></div>
 
            <div className="bg-bauhaus-red dark:bg-red-700 text-white p-4 md:p-6 text-center w-full border-4 border-bauhaus-black dark:border-gray-900">
              <div className="text-[10px] md:text-xs font-bold tracking-widest uppercase mb-1 md:mb-2">Active Students</div>
-             <div className="text-xl md:text-2xl font-black">{globalStats.activeStudents.toLocaleString()} Scholars</div>
+             <div className="text-lg md:text-2xl font-black">{globalStats.activeStudents.toLocaleString()} Scholars</div>
            </div>
         </div>
       </div>
