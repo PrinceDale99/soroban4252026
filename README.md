@@ -4,7 +4,7 @@
 
 ![StipeStream Banner](./site_home.png)
 
-[**🌐 Checkout the Live Website**](https://princedale99.github.io/StripeSpend/)
+[**🌐 Checkout the Live Website**](https://princedale99.github.io/StipeStream/)
 
 ## The Friction: Why StipeStream?
 **The Scenario:** Maria is a senior computer science student at a university in Metro Manila. Her monthly living allowance from a local scholarship NGO is her only way to pay for her daily commute and meals. When the NGO’s accounting department faces a "bureaucratic bottleneck," Maria’s funds are delayed by two weeks. 
@@ -129,8 +129,8 @@ stipestream/
 ### Detailed Setup
 **1. Clone and Install**
 ```bash
-git clone https://github.com/PrinceDale99/StripeSpend.git
-cd StripeSpend/frontend
+git clone https://github.com/PrinceDale99/StipeStream.git
+cd StipeStream/frontend
 npm install
 ```
 
