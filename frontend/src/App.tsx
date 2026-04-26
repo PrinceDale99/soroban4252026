@@ -273,11 +273,25 @@ export default function App() {
           <button onClick={() => setIsDarkMode(!isDarkMode)} className="p-2 border-2 md:border-4 border-bauhaus-black dark:border-gray-900 rounded-full hover:bg-white/20 transition-colors shrink-0">
             {isDarkMode ? <Sun className="w-4 h-4 text-gray-900" /> : <Moon className="w-4 h-4 text-bauhaus-black" />}
           </button>
-          <button
-            onClick={() => walletAddress ? null : setShowConnectModal(true)}
-            className="flex-grow md:w-auto bg-bauhaus-black dark:bg-gray-900 text-bauhaus-white font-bold text-[10px] md:text-xs tracking-[0.1em] md:tracking-[0.2em] uppercase px-3 py-2 md:px-4 md:py-3 hover:bg-gray-800 dark:hover:bg-black transition-colors truncate"
+          <button 
+            onClick={() => {
+              if (walletAddress) {
+                setWalletAddress(null);
+                setView('landing');
+                setIsDemoMode(false);
+              } else {
+                setShowConnectModal(true);
+              }
+            }}
+            className="flex-grow md:w-auto bg-bauhaus-black dark:bg-gray-900 text-bauhaus-white font-bold text-[10px] md:text-xs tracking-[0.1em] md:tracking-[0.2em] uppercase px-3 py-2 md:px-4 md:py-3 hover:bg-bauhaus-red dark:hover:bg-red-700 transition-colors truncate group relative"
+            title={walletAddress ? "Click to Disconnect" : "Connect Wallet"}
           >
-            {walletAddress ? (isDemoMode && walletAddress === "G_DEMO_ACCOUNT_123" ? "DEMO WALLET" : formatAddress(walletAddress)) : 'Connect Wallet'}
+            <span className="group-hover:hidden">
+              {walletAddress ? (isDemoMode && walletAddress === "G_DEMO_ACCOUNT_123" ? "DEMO WALLET" : formatAddress(walletAddress)) : 'Connect Wallet'}
+            </span>
+            <span className="hidden group-hover:inline">
+              {walletAddress ? "Disconnect" : "Connect Wallet"}
+            </span>
           </button>
         </div>
       </header>
