@@ -34,10 +34,10 @@ jobs:
       - name: Generate SLSA Attestation
         uses: actions/attest-build-provenance@v1
         with:
-          subject-path: 'contracts/hello-world/target/wasm32-unknown-unknown/release/stipestream.wasm'
+          subject-path: 'contracts/hello-world/target/wasm32v1-none/release/stipestream.wasm'
 
       - name: Upload WASM Artifact
         uses: actions/upload-artifact@v4
         with:
           name: stipestream-wasm
-          path: 'contracts/hello-world/target/wasm32-unknown-unknown/release/stipestream.wasm'
+          path: 'contracts/hello-world/target/wasm32v1-none/release/stipestream.wasm'
