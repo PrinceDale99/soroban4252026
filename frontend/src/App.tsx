@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { isConnected, isAllowed, setAllowed, getAddress, getNetwork, signTransaction } from '@stellar/freighter-api';
+import { isConnected, isAllowed, setAllowed, getAddress, signTransaction } from '@stellar/freighter-api';
 import * as StellarSdk from '@stellar/stellar-sdk';
 import confetti from 'canvas-confetti';
 import { Moon, Sun } from 'lucide-react';
@@ -94,8 +94,12 @@ function useProtocolState(walletAddress: string | null, isDemoMode: boolean) {
       .build();
 
     const preparedTx = await server.prepareTransaction(tx);
-    const signedXdr = await signTransaction(preparedTx.toXDR(), { network: 'TESTNET' });
-    const signedTransaction = StellarSdk.TransactionBuilder.fromXDR(signedXdr as string, StellarSdk.Networks.TESTNET);
+    const signResult = await signTransaction(preparedTx.toXDR(), { networkPassphrase: StellarSdk.Networks.TESTNET });
+    
+    // signTransaction can return a string (older) or an object (newer)
+    const signedXdr = typeof signResult === 'string' ? signResult : (signResult as any).signedTxXdr;
+    
+    const signedTransaction = StellarSdk.TransactionBuilder.fromXDR(signedXdr, StellarSdk.Networks.TESTNET);
     const sendResult = await server.sendTransaction(signedTransaction as any);
 
     if (sendResult.status !== "PENDING") throw new Error(`Failed to send: ${sendResult.status}`);
