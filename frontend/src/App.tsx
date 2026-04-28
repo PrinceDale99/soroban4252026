@@ -227,6 +227,10 @@ function useProtocolState(walletAddress: string | null, isDemoMode: boolean) {
   return { globalStats, studentState, donorDeposit, studentClaim, verifyStudent };
 }
 
+// Helpers
+const formatAddress = (address: string) => address ? `${address.slice(0, 4)}...${address.slice(-4)}` : '';
+const formatCompact = (num: number) => Intl.NumberFormat('en-US', { notation: "compact", maximumFractionDigits: 1 }).format(num);
+
 // Main Application Component
 export default function App() {
   const [hasFreighter, setHasFreighter] = useState(false);
@@ -402,8 +406,6 @@ export default function App() {
     } catch (err) { console.error("User denied connection", err); }
   };
 
-  const formatAddress = (address: string) => address ? `${address.slice(0, 4)}...${address.slice(-4)}` : '';
-  const formatCompact = (num: number) => Intl.NumberFormat('en-US', { notation: "compact", maximumFractionDigits: 1 }).format(num);
 
   const triggerTx = async (actionName: string, actionFn?: () => Promise<boolean> | boolean) => {
     const pendingMsg = isDemoMode ? `Simulating ${actionName} on Soroban...` : `Awaiting Freighter Signature for ${actionName}...`;
