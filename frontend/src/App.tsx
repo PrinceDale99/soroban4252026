@@ -403,6 +403,7 @@ export default function App() {
   };
 
   const formatAddress = (address: string) => address ? `${address.slice(0, 4)}...${address.slice(-4)}` : '';
+  const formatCompact = (num: number) => Intl.NumberFormat('en-US', { notation: "compact", maximumFractionDigits: 1 }).format(num);
 
   const triggerTx = async (actionName: string, actionFn?: () => Promise<boolean> | boolean) => {
     const pendingMsg = isDemoMode ? `Simulating ${actionName} on Soroban...` : `Awaiting Freighter Signature for ${actionName}...`;
@@ -674,15 +675,15 @@ function LandingView({ setView, globalStats }: { setView: (v: any) => void, glob
         <h2 className="text-xl md:text-2xl font-black uppercase tracking-[0.2em] md:mb-8 text-center md:text-left">Live Treasury Stats</h2>
       </div>
 
-      <div className="col-span-1 md:col-span-4 bg-bauhaus-white dark:bg-gray-800 border-l-4 md:border-l-8 border-bauhaus-blue p-6 md:p-10 shadow-lg md:shadow-none">
+      <div className="col-span-1 md:col-span-4 bg-bauhaus-white dark:bg-gray-800 border-l-4 md:border-l-8 border-bauhaus-blue p-6 md:p-10 shadow-lg md:shadow-none overflow-hidden">
         <div className="text-[10px] md:text-xs font-bold tracking-[0.2em] uppercase text-gray-400 mb-4 md:mb-6">Total Funds Locked (TVL)</div>
-        <div className="text-3xl md:text-5xl font-black mb-1 md:mb-2 text-bauhaus-blue dark:text-blue-400">{globalStats.tvl.toLocaleString()}</div>
+        <div className="text-3xl md:text-5xl font-black mb-1 md:mb-2 text-bauhaus-blue dark:text-blue-400 truncate" title={globalStats.tvl.toLocaleString()}>{formatCompact(globalStats.tvl)}</div>
         <div className="text-xs md:text-sm font-bold tracking-widest text-bauhaus-black dark:text-gray-300">USDC</div>
       </div>
 
-      <div className="col-span-1 md:col-span-4 bg-bauhaus-black dark:bg-gray-900 text-bauhaus-white p-6 md:p-10 shadow-lg md:shadow-none">
+      <div className="col-span-1 md:col-span-4 bg-bauhaus-black dark:bg-gray-900 text-bauhaus-white p-6 md:p-10 shadow-lg md:shadow-none overflow-hidden">
         <div className="text-[10px] md:text-xs font-bold tracking-[0.2em] uppercase text-gray-400 mb-4 md:mb-6">Scholarships Distributed</div>
-        <div className="text-3xl md:text-5xl font-black mb-1 md:mb-2 text-bauhaus-yellow">{globalStats.distributedCount.toLocaleString()}</div>
+        <div className="text-3xl md:text-5xl font-black mb-1 md:mb-2 text-bauhaus-yellow truncate" title={globalStats.distributedCount.toLocaleString()}>{formatCompact(globalStats.distributedCount)}</div>
         <div className="text-xs md:text-sm font-bold tracking-widest text-gray-300">SUCCESSFUL CLAIMS</div>
       </div>
 
