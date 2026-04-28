@@ -4,10 +4,51 @@ import * as StellarSdk from '@stellar/stellar-sdk';
 import confetti from 'canvas-confetti';
 import { Moon, Sun } from 'lucide-react';
 
-const CONTRACT_ID = 'CCSUHUIWD7KLPACAVPROOFMUD6D3GPMEXJVXSRFB52BCVQHREKEH2YCV';
-const RPC_URL = 'https://soroban-testnet.stellar.org';
+const CONTRACT_ID = import.meta.env.VITE_CONTRACT_ID || 'CCSUHUIWD7KLPACAVPROOFMUD6D3GPMEXJVXSRFB52BCVQHREKEH2YCV';
+const RPC_URL = import.meta.env.VITE_STELLAR_RPC_URL || 'https://soroban-testnet.stellar.org';
 
-// --- Protocol State Management ---
+// Fee Sponsorship Config
+// Set VITE_SPONSOR_SECRET in your .env file to enable gasless transactions.
+// The sponsor account pays all XLM transaction fees on behalf of scholars.
+const SPONSOR_SECRET = import.meta.env.VITE_SPONSOR_SECRET as string | undefined;
+const hasSponsor = !!SPONSOR_SECRET;
+
+// Multi-Signature Logic
+interface MultiSigSigner { address: string; label: string; weight: number; }
+interface MultiSigConfig {
+  isEnabled: boolean;
+  signers: MultiSigSigner[];
+  medThreshold: number;   // weight needed for deposits < HIGH_VALUE
+  highThreshold: number;  // weight needed for deposits >= HIGH_VALUE
+  highValueThreshold: number;
+}
+interface MultiSigProposal {
+  id: string;
+  amount: number;
+  isOnboarding: boolean;
+  proposedBy: string;
+  proposedByLabel: string;
+  proposedAt: number;
+  approvals: string[];
+  status: 'pending' | 'approved' | 'executed' | 'rejected';
+}
+
+const DEFAULT_MULTISIG: MultiSigConfig = {
+  isEnabled: true,
+  signers: [
+    { address: 'G_DEMO_ACCOUNT_123',                                           label: 'NGO Director (You)',  weight: 2 },
+    { address: 'GBOJN4A72VBGZJMJBJ7P2UVGKERZRVRTDVZ57CGBLVNBW333WSPPZF5E', label: 'Board Chair',         weight: 1 },
+    { address: 'GCCPBOUQK45AYSLFBRJPFA7ROM47XQOOB437XCCHBJ4Q5EVZ4GZMGSR4', label: 'Finance Officer',     weight: 1 },
+  ],
+  medThreshold: 2,
+  highThreshold: 3,
+  highValueThreshold: 5000,
+};
+
+// Account Abstraction
+interface AbstractWallet { type: 'passkey' | 'email'; address: string; label: string; credentialId?: string; }
+
+// Protocol State Management
 interface GlobalStats {
   tvl: number;
   distributedCount: number;
@@ -81,29 +122,62 @@ function useProtocolState(walletAddress: string | null, isDemoMode: boolean) {
       return "demo_tx_hash_" + Math.random().toString(36).substring(7);
     }
     if (!walletAddress) throw new Error("Wallet not connected");
+
     const server = new StellarSdk.rpc.Server(RPC_URL);
     const contract = new StellarSdk.Contract(CONTRACT_ID);
+
+    // Fee Sponsorship: Fee Bump Transaction
+    // Inner transaction uses the student's account. Outer FeeBumpTransaction
+    // uses the sponsor's account to cover all XLM gas fees.
     const sourceAccount = await server.getAccount(walletAddress);
 
-    let tx = new StellarSdk.TransactionBuilder(sourceAccount, {
-      fee: "1000",
+    // Step 1: Build inner transaction with minimum fee.
+    const innerTx = new StellarSdk.TransactionBuilder(sourceAccount, {
+      fee: StellarSdk.BASE_FEE, // Minimum; sponsor will pay the real fee via fee bump
       networkPassphrase: StellarSdk.Networks.TESTNET,
     })
       .addOperation(contract.call(method, ...args))
       .setTimeout(30)
       .build();
 
-    const preparedTx = await server.prepareTransaction(tx);
-    const signResult = await signTransaction(preparedTx.toXDR(), { networkPassphrase: StellarSdk.Networks.TESTNET });
-    
-    // signTransaction can return a string (older) or an object (newer)
-    const signedXdr = typeof signResult === 'string' ? signResult : (signResult as any).signedTxXdr;
-    
-    const signedTransaction = StellarSdk.TransactionBuilder.fromXDR(signedXdr, StellarSdk.Networks.TESTNET);
-    const sendResult = await server.sendTransaction(signedTransaction as any);
+    // Step 2: Soroban simulation — calculates resource fees and pads the transaction
+    const preparedInnerTx = await server.prepareTransaction(innerTx);
 
-    if (sendResult.status !== "PENDING") throw new Error(`Failed to send: ${sendResult.status}`);
-    return sendResult.hash;
+    // Step 3: Student signs the inner transaction with Freighter (authorizing the operation)
+    const signResult = await signTransaction(preparedInnerTx.toXDR(), {
+      networkPassphrase: StellarSdk.Networks.TESTNET,
+    });
+    const signedXdr = typeof signResult === 'string' ? signResult : (signResult as any).signedTxXdr;
+    const signedInnerTx = StellarSdk.TransactionBuilder.fromXDR(
+      signedXdr,
+      StellarSdk.Networks.TESTNET
+    ) as StellarSdk.Transaction;
+
+    if (hasSponsor && SPONSOR_SECRET) {
+      // Step 4 (Sponsored): Build Fee Bump transaction — sponsor is fee_source
+      // maxFee covers the fee bump envelope. Must be >= fee of inner tx.
+      const sponsorKeypair = StellarSdk.Keypair.fromSecret(SPONSOR_SECRET);
+
+      const feeBumpTx = StellarSdk.TransactionBuilder.buildFeeBumpTransaction(
+        sponsorKeypair,          // fee_source: sponsor pays XLM gas
+        "10000",                 // max_fee: maximum stroops sponsor will pay for this bump
+        signedInnerTx,           // inner_tx: student-signed operation
+        StellarSdk.Networks.TESTNET
+      );
+
+      // Step 5: Sponsor signs the fee bump envelope
+      feeBumpTx.sign(sponsorKeypair);
+
+      // Step 6: Submit the fee bump transaction
+      const sendResult = await server.sendTransaction(feeBumpTx as any);
+      if (sendResult.status !== "PENDING") throw new Error(`Fee bump failed: ${sendResult.status}`);
+      return sendResult.hash;
+    } else {
+      // Fallback: No sponsor configured — student pays their own fees
+      const sendResult = await server.sendTransaction(signedInnerTx as any);
+      if (sendResult.status !== "PENDING") throw new Error(`Transaction failed: ${sendResult.status}`);
+      return sendResult.hash;
+    }
   };
 
   const donorDeposit = async (amount: number, isNewStudent: boolean) => {
@@ -153,7 +227,7 @@ function useProtocolState(walletAddress: string | null, isDemoMode: boolean) {
   return { globalStats, studentState, donorDeposit, studentClaim, verifyStudent };
 }
 
-// --- Main Application ---
+// Main Application Component
 export default function App() {
   const [hasFreighter, setHasFreighter] = useState(false);
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
@@ -180,11 +254,97 @@ export default function App() {
     }
   }, [isDarkMode]);
 
+  const [xlmBalance, setXlmBalance] = useState<string | null>(null);
   const [showConnectModal, setShowConnectModal] = useState(false);
   const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false);
   const [showLargeDonationConfirm, setShowLargeDonationConfirm] = useState<{ show: boolean, amount: number, callback: () => void }>({ show: false, amount: 0, callback: () => {} });
   const [txModal, setTxModal] = useState<{ show: boolean, status: 'pending' | 'success' | 'failed', message: string }>({ show: false, status: 'pending', message: '' });
   const { globalStats, studentState, donorDeposit, studentClaim, verifyStudent } = useProtocolState(walletAddress, isDemoMode);
+
+  // --- Multi-Sig State ---
+  const msKey = isDemoMode ? 'stipestream_demo_proposals' : 'stipestream_proposals';
+  const [multiSigConfig] = useState<MultiSigConfig>(() => {
+    const s = localStorage.getItem('stipestream_multisig_config'); return s ? JSON.parse(s) : DEFAULT_MULTISIG;
+  });
+  const [proposals, setProposals] = useState<MultiSigProposal[]>(() => {
+    const s = localStorage.getItem(msKey); return s ? JSON.parse(s) : [];
+  });
+  const saveProposals = (next: MultiSigProposal[]) => {
+    setProposals(next); localStorage.setItem(msKey, JSON.stringify(next));
+  };
+  const signerWeight = (addr: string) => multiSigConfig.signers.find(s => s.address === addr)?.weight ?? 0;
+  const proposalWeight = (p: MultiSigProposal) => p.approvals.reduce((s, a) => s + signerWeight(a), 0);
+  const requiredWeight = (amount: number) => amount >= multiSigConfig.highValueThreshold ? multiSigConfig.highThreshold : multiSigConfig.medThreshold;
+  const createProposal = (amount: number, isOnboarding: boolean) => {
+    const addr = walletAddress || 'unknown';
+    const lbl = multiSigConfig.signers.find(s => s.address === addr)?.label || 'Admin';
+    const p: MultiSigProposal = { id: 'p_' + Date.now(), amount, isOnboarding, proposedBy: addr, proposedByLabel: lbl, proposedAt: Date.now(), approvals: [addr], status: 'pending' };
+    const w = signerWeight(addr); const r = requiredWeight(amount);
+    if (w >= r) p.status = 'approved';
+    saveProposals([...proposals, p]); return p;
+  };
+  const approveProposal = (id: string) => {
+    if (!walletAddress) return;
+    const next = proposals.map(p => {
+      if (p.id !== id || p.status !== 'pending' || p.approvals.includes(walletAddress)) return p;
+      const approvals = [...p.approvals, walletAddress];
+      const w = approvals.reduce((s, a) => s + signerWeight(a), 0);
+      return { ...p, approvals, status: w >= requiredWeight(p.amount) ? 'approved' as const : 'pending' as const };
+    }); saveProposals(next);
+  };
+  const rejectProposal = (id: string) => saveProposals(proposals.map(p => p.id === id ? { ...p, status: 'rejected' as const } : p));
+  const executeProposal = async (id: string) => {
+    const p = proposals.find(x => x.id === id);
+    if (!p || p.status !== 'approved') return;
+    await triggerTx('Multi-Sig Deposit', () => donorDeposit(p.amount, p.isOnboarding));
+    saveProposals(proposals.map(x => x.id === id ? { ...x, status: 'executed' as const } : x));
+  };
+
+  // Account Abstraction State
+  const [, setAbstractWallet] = useState<AbstractWallet | null>(() => {
+    const s = localStorage.getItem('stipestream_abstract_wallet'); return s ? JSON.parse(s) : null;
+  });
+  const [showEmailForm, setShowEmailForm] = useState(false);
+  const [emailInput, setEmailInput] = useState('');
+  const connectWithPasskey = async () => {
+    if (!window.PublicKeyCredential) { alert('Passkeys not supported in this browser.'); return; }
+    try {
+      const existId = localStorage.getItem('stipestream_passkey_id');
+      if (existId) {
+        try {
+          await navigator.credentials.get({ publicKey: { challenge: crypto.getRandomValues(new Uint8Array(32)), allowCredentials: [{ id: Uint8Array.from(atob(existId), c => c.charCodeAt(0)), type: 'public-key' }], timeout: 60000, userVerification: 'preferred' } });
+          const saved = localStorage.getItem('stipestream_abstract_wallet');
+          if (saved) { const w: AbstractWallet = JSON.parse(saved); setAbstractWallet(w); setWalletAddress(w.address); setShowConnectModal(false); return; }
+        } catch (_) { localStorage.removeItem('stipestream_passkey_id'); }
+      }
+      const cred = await navigator.credentials.create({ publicKey: {
+        challenge: crypto.getRandomValues(new Uint8Array(32)),
+        rp: { name: 'StipeStream', id: window.location.hostname === 'localhost' ? 'localhost' : window.location.hostname },
+        user: { id: crypto.getRandomValues(new Uint8Array(16)), name: 'scholar@stipestream.app', displayName: 'StipeStream Scholar' },
+        pubKeyCredParams: [{ alg: -7, type: 'public-key' }, { alg: -257, type: 'public-key' }],
+        authenticatorSelection: { userVerification: 'preferred', residentKey: 'preferred' }, timeout: 60000,
+      } }) as PublicKeyCredential;
+      const kp = StellarSdk.Keypair.random();
+      const credId = btoa(String.fromCharCode(...new Uint8Array(cred.rawId)));
+      localStorage.setItem('stipestream_passkey_id', credId);
+      localStorage.setItem(`stipestream_abs_secret_${kp.publicKey()}`, kp.secret());
+      const w: AbstractWallet = { type: 'passkey', address: kp.publicKey(), label: 'Passkey Scholar', credentialId: credId };
+      localStorage.setItem('stipestream_abstract_wallet', JSON.stringify(w));
+      setAbstractWallet(w); setWalletAddress(kp.publicKey()); setShowConnectModal(false);
+      fetch(`https://friendbot.stellar.org?addr=${kp.publicKey()}`).catch(() => {});
+    } catch (err: any) { if (err?.name !== 'NotAllowedError') console.error('Passkey error:', err); }
+  };
+  const connectWithEmail = (email: string) => {
+    const norm = email.toLowerCase().trim();
+    const stored = localStorage.getItem(`stipestream_email_kp_${norm}`);
+    const kp = stored ? StellarSdk.Keypair.fromSecret(stored) : StellarSdk.Keypair.random();
+    if (!stored) localStorage.setItem(`stipestream_email_kp_${norm}`, kp.secret());
+    const w: AbstractWallet = { type: 'email', address: kp.publicKey(), label: norm };
+    localStorage.setItem('stipestream_abstract_wallet', JSON.stringify(w));
+    setAbstractWallet(w); setWalletAddress(kp.publicKey());
+    setShowConnectModal(false); setShowEmailForm(false); setEmailInput('');
+    fetch(`https://friendbot.stellar.org?addr=${kp.publicKey()}`).catch(() => {});
+  };
 
   useEffect(() => {
     (window as any).confirmLargeDonation = (amount: number, callback: () => void) => {
@@ -213,7 +373,20 @@ export default function App() {
   const fetchUserInfo = async () => {
     try {
       const result = await getAddress();
-      if (result && result.address) setWalletAddress(result.address);
+      if (result && result.address) {
+        setWalletAddress(result.address);
+        
+        // Fetch XLM Balance from Horizon Testnet
+        try {
+          const horizonServer = new StellarSdk.Horizon.Server('https://horizon-testnet.stellar.org');
+          const account = await horizonServer.loadAccount(result.address);
+          const nativeBalance = account.balances.find(b => b.asset_type === 'native')?.balance;
+          if (nativeBalance) setXlmBalance(nativeBalance);
+        } catch (balErr) {
+          console.error("Error fetching XLM balance:", balErr);
+          setXlmBalance("0.00"); // Default if account not found/funded
+        }
+      }
     } catch (err) {
       console.error("Error fetching user info:", err);
     }
@@ -232,7 +405,8 @@ export default function App() {
   const formatAddress = (address: string) => address ? `${address.slice(0, 4)}...${address.slice(-4)}` : '';
 
   const triggerTx = async (actionName: string, actionFn?: () => Promise<boolean> | boolean) => {
-    setTxModal({ show: true, status: 'pending', message: `Please sign the transaction in your Freighter wallet...` });
+    const pendingMsg = isDemoMode ? `Simulating ${actionName} on Soroban...` : `Awaiting Freighter Signature for ${actionName}...`;
+    setTxModal({ show: true, status: 'pending', message: pendingMsg });
     let success = true;
     if (actionFn) {
       try {
@@ -243,6 +417,8 @@ export default function App() {
     if (success) {
       setTxModal({ show: true, status: 'success', message: `${actionName} confirmed! View on Stellar Explorer.` });
       confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 }, colors: ['#E63946', '#1D4ED8', '#FACC15'] });
+      // Refresh balance after successful transaction
+      await fetchUserInfo();
     } else {
       setTxModal({ show: true, status: 'failed', message: `Transaction failed or rejected. Please check your balance or permissions.` });
     }
@@ -296,7 +472,16 @@ export default function App() {
             title={walletAddress ? "Click to Disconnect" : "Connect Wallet"}
           >
             <span className="group-hover:hidden">
-              {walletAddress ? (isDemoMode && walletAddress === "G_DEMO_ACCOUNT_123" ? "DEMO WALLET" : formatAddress(walletAddress)) : 'Connect Wallet'}
+              {walletAddress ? (
+                isDemoMode && walletAddress === "G_DEMO_ACCOUNT_123" ? (
+                  "DEMO WALLET"
+                ) : (
+                  <span className="flex items-center gap-2">
+                    {xlmBalance && <span className="text-bauhaus-yellow">{parseFloat(xlmBalance).toFixed(2)} XLM</span>}
+                    <span>{formatAddress(walletAddress)}</span>
+                  </span>
+                )
+              ) : 'Connect Wallet'}
             </span>
             <span className="hidden group-hover:inline">
               {walletAddress === "G_DEMO_ACCOUNT_123" ? "Exit Demo" : (walletAddress ? "Disconnect" : "Connect Wallet")}
@@ -307,8 +492,8 @@ export default function App() {
 
       <main className="flex-grow bauhaus-container w-full">
         {view === 'landing' && <LandingView setView={setView} globalStats={globalStats} />}
-        {view === 'student' && <StudentDashboard triggerTx={triggerTx} state={studentState} verifyFn={verifyStudent} claimFn={studentClaim} walletAddress={walletAddress} />}
-        {view === 'donor' && <DonorDashboard triggerTx={triggerTx} depositFn={donorDeposit} globalStats={globalStats} />}
+        {view === 'student' && <StudentDashboard triggerTx={triggerTx} state={studentState} verifyFn={verifyStudent} claimFn={studentClaim} walletAddress={walletAddress} isDemoMode={isDemoMode} />}
+        {view === 'donor' && <DonorDashboard triggerTx={triggerTx} depositFn={donorDeposit} globalStats={globalStats} multiSigConfig={multiSigConfig} proposals={proposals} walletAddress={walletAddress} createProposal={createProposal} approveProposal={approveProposal} rejectProposal={rejectProposal} executeProposal={executeProposal} proposalWeight={proposalWeight} requiredWeight={requiredWeight} />}
       </main>
 
       {/* Demo Modal */}
@@ -341,6 +526,7 @@ export default function App() {
               <button 
                 onClick={() => {
                   setWalletAddress(null);
+                  setXlmBalance(null);
                   setView('landing');
                   setIsDemoMode(false);
                   setShowDisconnectConfirm(false);
@@ -392,19 +578,40 @@ export default function App() {
         </div>
       )}
 
-      {/* Connect Modal */}
+      {/* Connect Modal — Account Abstraction + Freighter */}
       {showConnectModal && (
         <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
           <div className="bg-bauhaus-white dark:bg-gray-900 border-4 md:border-8 border-bauhaus-black dark:border-gray-700 p-6 md:p-8 w-full max-w-md">
-            <h2 className="text-xl md:text-2xl font-black uppercase mb-4 tracking-widest text-bauhaus-blue dark:text-blue-400">Connect Wallet</h2>
-            <p className="text-[10px] md:text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-6">StipeStream is exclusively built on Stellar Soroban.</p>
-            <div className="space-y-4">
+            <h2 className="text-xl md:text-2xl font-black uppercase mb-2 tracking-widest text-bauhaus-blue dark:text-blue-400">Connect Wallet</h2>
+            <p className="text-[10px] md:text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-6">StipeStream is built on Stellar Soroban.</p>
+            <div className="space-y-3">
+              {/* Freighter */}
               <button onClick={handleConnect} className="w-full border-4 border-bauhaus-black dark:border-gray-700 p-4 font-bold uppercase tracking-widest hover:bg-bauhaus-black hover:text-white dark:hover:bg-gray-800 transition-colors flex justify-between items-center text-xs md:text-sm">
-                <span>Freighter Wallet</span>
+                <span>🦔 Freighter Wallet</span>
                 {hasFreighter ? <span className="w-3 h-3 bg-green-500 rounded-full"></span> : <span className="text-[10px] text-gray-400">Install</span>}
               </button>
+              {/* Passkey — Account Abstraction */}
+              <button onClick={connectWithPasskey} className="w-full border-4 border-bauhaus-blue dark:border-blue-500 p-4 font-bold uppercase tracking-widest hover:bg-bauhaus-blue hover:text-white transition-colors flex justify-between items-center text-xs md:text-sm">
+                <span>🔑 Passkey (No Extension)</span>
+                <span className="text-[8px] bg-bauhaus-blue text-white px-2 py-0.5 font-black tracking-widest">NEW</span>
+              </button>
+              {/* Email — Account Abstraction */}
+              {!showEmailForm ? (
+                <button onClick={() => setShowEmailForm(true)} className="w-full border-4 border-bauhaus-yellow dark:border-yellow-400 p-4 font-bold uppercase tracking-widest hover:bg-bauhaus-yellow hover:text-bauhaus-black transition-colors flex justify-between items-center text-xs md:text-sm">
+                  <span>✉️ Email (Smart Wallet)</span>
+                  <span className="text-[8px] bg-bauhaus-yellow text-bauhaus-black px-2 py-0.5 font-black tracking-widest">BETA</span>
+                </button>
+              ) : (
+                <div className="border-4 border-bauhaus-yellow dark:border-yellow-400 p-4">
+                  <input type="email" placeholder="scholar@example.com" value={emailInput} onChange={e => setEmailInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && emailInput && connectWithEmail(emailInput)} className="w-full bg-transparent border-b-2 border-bauhaus-black dark:border-gray-400 p-2 font-bold text-sm focus:outline-none mb-3" autoFocus />
+                  <button onClick={() => emailInput && connectWithEmail(emailInput)} className="w-full bg-bauhaus-yellow text-bauhaus-black font-black uppercase tracking-widest py-3 border-2 border-bauhaus-black text-xs hover:bg-white transition-colors">Continue with Email</button>
+                </div>
+              )}
             </div>
-            <button onClick={() => setShowConnectModal(false)} className="mt-8 text-[10px] md:text-xs font-bold uppercase tracking-widest underline w-full text-center hover:text-bauhaus-red">Cancel</button>
+            <div className="mt-4 p-3 bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600">
+              <p className="text-[9px] font-bold uppercase tracking-widest text-gray-500 dark:text-gray-400">⚡ Account Abstraction: Passkey & Email options create a self-custodied Stellar keypair stored locally. No browser extension required.</p>
+            </div>
+            <button onClick={() => { setShowConnectModal(false); setShowEmailForm(false); setEmailInput(''); }} className="mt-6 text-[10px] md:text-xs font-bold uppercase tracking-widest underline w-full text-center hover:text-bauhaus-red">Cancel</button>
           </div>
         </div>
       )}
@@ -429,7 +636,7 @@ export default function App() {
   );
 }
 
-// --- Views ---
+// Views
 
 function LandingView({ setView, globalStats }: { setView: (v: any) => void, globalStats: GlobalStats }) {
   return (
@@ -485,7 +692,7 @@ function LandingView({ setView, globalStats }: { setView: (v: any) => void, glob
   );
 }
 
-function StudentDashboard({ triggerTx, state, verifyFn, claimFn, walletAddress }: { triggerTx: any, state: StudentState, verifyFn: any, claimFn: any, walletAddress: string | null }) {
+function StudentDashboard({ triggerTx, state, verifyFn, claimFn, walletAddress, isDemoMode }: { triggerTx: any, state: StudentState, verifyFn: any, claimFn: any, walletAddress: string | null, isDemoMode: boolean }) {
   const [timeLeft, setTimeLeft] = useState(0);
 
   useEffect(() => {
@@ -574,11 +781,50 @@ function StudentDashboard({ triggerTx, state, verifyFn, claimFn, walletAddress }
             </div>
           </div>
 
-          <div className="text-center mb-6 md:mb-8">
-            <p className="text-[8px] md:text-[10px] font-bold uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400 mb-2">Gas Fee Handling</p>
-            <p className="text-[10px] md:text-xs font-bold text-bauhaus-blue dark:text-blue-400 uppercase tracking-widest border border-bauhaus-blue p-2 inline-block">
-              Gas sponsored by StipeStream. You pay 0 XLM.
-            </p>
+          {/* Fee Sponsorship Status Badge */}
+          <div className="mb-6 md:mb-8 border-2 border-bauhaus-black dark:border-gray-600 p-4">
+            <p className="text-[8px] md:text-[10px] font-bold uppercase tracking-[0.3em] text-gray-400 dark:text-gray-500 mb-3 text-center">Gas Fee Handling</p>
+            <div className="flex items-center gap-3 justify-center">
+              {/* Animated pulse indicator */}
+              <span className={`relative flex h-3 w-3 shrink-0`}>
+                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
+                  isDemoMode
+                    ? 'bg-bauhaus-yellow'
+                    : hasSponsor
+                    ? 'bg-green-400'
+                    : 'bg-gray-400'
+                }`}></span>
+                <span className={`relative inline-flex rounded-full h-3 w-3 ${
+                  isDemoMode
+                    ? 'bg-bauhaus-yellow'
+                    : hasSponsor
+                    ? 'bg-green-500'
+                    : 'bg-gray-500'
+                }`}></span>
+              </span>
+              <div className="text-left">
+                <p className={`text-[10px] md:text-xs font-black uppercase tracking-widest ${
+                  isDemoMode
+                    ? 'text-bauhaus-yellow dark:text-yellow-400'
+                    : hasSponsor
+                    ? 'text-green-600 dark:text-green-400'
+                    : 'text-gray-500 dark:text-gray-400'
+                }`}>
+                  {isDemoMode
+                    ? 'Fee Bump: Simulated'
+                    : hasSponsor
+                    ? '✓ Fee Bump Active — You Pay 0 XLM'
+                    : 'Student Pays Fees (No Sponsor Set)'}
+                </p>
+                <p className="text-[8px] md:text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mt-0.5">
+                  {isDemoMode
+                    ? 'Demo mode bypasses real gas'
+                    : hasSponsor
+                    ? 'Sponsor account covers all XLM gas via FeeBumpTransaction'
+                    : 'Set VITE_SPONSOR_SECRET to enable sponsorship'}
+                </p>
+              </div>
+            </div>
           </div>
 
           <button
@@ -594,11 +840,22 @@ function StudentDashboard({ triggerTx, state, verifyFn, claimFn, walletAddress }
   );
 }
 
-function DonorDashboard({ triggerTx, depositFn, globalStats }: { triggerTx: any, depositFn: any, globalStats: GlobalStats }) {
+function DonorDashboard({ triggerTx, depositFn, globalStats, multiSigConfig, proposals, walletAddress, createProposal, approveProposal, rejectProposal, executeProposal, proposalWeight, requiredWeight }: { triggerTx: any, depositFn: any, globalStats: GlobalStats, multiSigConfig: MultiSigConfig, proposals: MultiSigProposal[], walletAddress: string | null, createProposal: any, approveProposal: any, rejectProposal: any, executeProposal: any, proposalWeight: any, requiredWeight: any }) {
   const [amount, setAmount] = useState<number>(1000);
   const [isOnboarding, setIsOnboarding] = useState(true);
 
-  const handleDeposit = async () => { return await depositFn(amount, isOnboarding); };
+  const handleDeposit = async () => {
+    // Multi-sig: create a proposal instead of executing directly
+    const p = createProposal(amount, isOnboarding);
+    if (p.status === 'approved') {
+      // Proposer has enough weight alone — execute immediately
+      return await depositFn(amount, isOnboarding);
+    }
+    // Otherwise proposal is pending; other signers must approve
+    return true;
+  };
+
+  const pendingProposals = proposals.filter((p: MultiSigProposal) => p.status === 'pending' || p.status === 'approved');
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-12 gap-6 md:gap-8 animate-in fade-in duration-700">
@@ -609,6 +866,84 @@ function DonorDashboard({ triggerTx, depositFn, globalStats }: { triggerTx: any,
           <div className="text-lg md:text-2xl font-black uppercase tracking-widest text-bauhaus-black dark:text-white">{globalStats.donorImpact}</div>
         </div>
       </div>
+
+      {/* ── Multi-Sig Council Panel ── */}
+      <div className="col-span-1 md:col-span-12 border-4 border-bauhaus-black dark:border-gray-700 bg-bauhaus-white dark:bg-gray-900">
+        <div className="bg-bauhaus-black dark:bg-gray-800 px-6 py-4 flex items-center justify-between">
+          <h2 className="text-white font-black uppercase tracking-[0.3em] text-xs md:text-sm">🔐 Multi-Sig Council</h2>
+          <span className="text-bauhaus-yellow font-black text-[10px] uppercase tracking-widest">{multiSigConfig.medThreshold}-of-{multiSigConfig.signers.reduce((s,x)=>s+x.weight,0)} Governance</span>
+        </div>
+        <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-4 border-b-4 border-bauhaus-black dark:border-gray-700">
+          {multiSigConfig.signers.map(s => {
+            const isCurrentUser = walletAddress === s.address;
+            return (
+              <div key={s.address} className={`p-4 border-4 ${isCurrentUser ? 'border-bauhaus-red bg-bauhaus-red/5' : 'border-bauhaus-black dark:border-gray-600'} flex items-center gap-3`}>
+                <div className={`w-10 h-10 flex items-center justify-center font-black text-lg border-4 border-bauhaus-black shrink-0 ${isCurrentUser ? 'bg-bauhaus-red text-white' : 'bg-bauhaus-yellow text-bauhaus-black'}`}>{s.weight}</div>
+                <div>
+                  <div className="font-black text-xs uppercase tracking-widest">{s.label}{isCurrentUser && <span className="ml-1 text-bauhaus-red">✦</span>}</div>
+                  <div className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">{s.address.slice(0,6)}…{s.address.slice(-4)}</div>
+                  <div className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Weight: {s.weight} pt{s.weight !== 1 ? 's' : ''}</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <div className="p-4 flex flex-wrap gap-6 text-[10px] font-bold uppercase tracking-widest text-gray-500 dark:text-gray-400">
+          <span>🟡 Med ops (&lt;{multiSigConfig.highValueThreshold.toLocaleString()} USDC): <strong className="text-bauhaus-black dark:text-white">{multiSigConfig.medThreshold} weight</strong></span>
+          <span>🔴 High ops (≥{multiSigConfig.highValueThreshold.toLocaleString()} USDC): <strong className="text-bauhaus-black dark:text-white">{multiSigConfig.highThreshold} weight</strong></span>
+        </div>
+      </div>
+
+      {/* ── Pending Proposals ── */}
+      {pendingProposals.length > 0 && (
+        <div className="col-span-1 md:col-span-12 border-4 border-bauhaus-yellow dark:border-yellow-400 bg-bauhaus-white dark:bg-gray-900">
+          <div className="bg-bauhaus-yellow px-6 py-4">
+            <h2 className="text-bauhaus-black font-black uppercase tracking-[0.3em] text-xs md:text-sm">⏳ Pending Proposals ({pendingProposals.length})</h2>
+          </div>
+          <div className="divide-y-4 divide-bauhaus-black dark:divide-gray-700">
+            {pendingProposals.map((p: MultiSigProposal) => {
+              const w = proposalWeight(p); const r = requiredWeight(p.amount);
+              const pct = Math.min(100, Math.round((w / r) * 100));
+              const alreadyApproved = walletAddress ? p.approvals.includes(walletAddress) : false;
+              return (
+                <div key={p.id} className="p-6">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+                    <div>
+                      <span className={`inline-block px-3 py-1 text-[9px] font-black uppercase tracking-widest border-2 mr-3 ${ p.status === 'approved' ? 'bg-green-500 text-white border-green-700' : 'bg-bauhaus-yellow text-bauhaus-black border-bauhaus-black'}`}>{p.status}</span>
+                      <span className="font-black text-sm">{p.amount.toLocaleString()} USDC</span>
+                      <span className="ml-2 text-[10px] font-bold text-gray-400 uppercase">{p.isOnboarding ? '+ New Scholar' : 'Refill'}</span>
+                    </div>
+                    <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">By {p.proposedByLabel} · {new Date(p.proposedAt).toLocaleDateString()}</div>
+                  </div>
+                  <div className="mb-4">
+                    <div className="flex justify-between text-[9px] font-bold uppercase tracking-widest text-gray-500 mb-1">
+                      <span>Approval Weight</span><span>{w}/{r} pts</span>
+                    </div>
+                    <div className="h-3 bg-gray-200 dark:bg-gray-700 border-2 border-bauhaus-black dark:border-gray-600">
+                      <div className="h-full bg-bauhaus-blue transition-all duration-700" style={{width:`${pct}%`}}></div>
+                    </div>
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {multiSigConfig.signers.map(s => (
+                        <span key={s.address} className={`text-[9px] px-2 py-0.5 font-black uppercase border ${ p.approvals.includes(s.address) ? 'bg-bauhaus-blue text-white border-bauhaus-blue' : 'border-gray-300 dark:border-gray-600 text-gray-400'}`}>{s.label} ({s.weight})</span>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex gap-3">
+                    {p.status === 'approved' ? (
+                      <button onClick={() => executeProposal(p.id)} className="bg-green-500 text-white font-black uppercase tracking-widest px-6 py-3 border-2 border-green-700 hover:bg-green-600 transition-colors text-[10px]">🚀 Execute Deposit</button>
+                    ) : !alreadyApproved ? (
+                      <button onClick={() => approveProposal(p.id)} className="bg-bauhaus-blue text-white font-black uppercase tracking-widest px-6 py-3 border-2 border-bauhaus-black hover:bg-blue-700 transition-colors text-[10px]">✓ Approve</button>
+                    ) : (
+                      <span className="text-[10px] font-bold text-green-600 dark:text-green-400 uppercase tracking-widest flex items-center">✓ You approved</span>
+                    )}
+                    {p.status !== 'approved' && <button onClick={() => rejectProposal(p.id)} className="bg-bauhaus-red text-white font-black uppercase tracking-widest px-6 py-3 border-2 border-bauhaus-black hover:bg-red-700 transition-colors text-[10px]">✕ Reject</button>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="col-span-1 md:col-span-12 bg-bauhaus-white dark:bg-gray-800 p-6 md:p-12 border-4 border-bauhaus-black dark:border-gray-700 overflow-hidden">
         <h2 className="text-lg md:text-xl font-bold tracking-[0.2em] uppercase mb-8 md:mb-12">Fund Allocation</h2>
@@ -687,6 +1022,19 @@ function DonorDashboard({ triggerTx, depositFn, globalStats }: { triggerTx: any,
           className="bg-bauhaus-yellow text-bauhaus-black font-black uppercase tracking-[0.1em] md:tracking-[0.2em] py-3 md:py-6 px-4 md:px-12 border-4 border-bauhaus-black hover:bg-white transition-colors cursor-pointer w-full text-[10px] md:text-sm"
         >
           Fund Protocol via Soroban
+          {amount >= 5000
+            ? <span className="block text-[8px] tracking-widest opacity-70">≥ {multiSigConfig.highThreshold} weight required (high-value)</span>
+            : <span className="block text-[8px] tracking-widest opacity-70">≥ {multiSigConfig.medThreshold} weight required → creates proposal</span>
+          }
+        </button>
+        
+        {/* Iteration 1: Bulk Onboarding Placeholder (Based on David Miller Feedback) */}
+        <button 
+          onClick={() => alert("Bulk Onboarding (CSV) is currently in development for Version 2.0. Stay tuned!")}
+          className="mt-4 bg-transparent text-white/60 font-bold uppercase tracking-widest py-3 px-4 border-2 border-white/20 hover:border-white/40 hover:text-white transition-all w-full text-[8px] md:text-[10px] cursor-pointer flex items-center justify-center gap-2"
+        >
+          <span>📁 Bulk Onboard (CSV)</span>
+          <span className="bg-bauhaus-yellow text-bauhaus-black px-2 py-0.5 rounded-none text-[6px]">BETA</span>
         </button>
       </div>
 
