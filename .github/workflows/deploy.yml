@@ -29,6 +29,8 @@ jobs:
       - name: Build Project 🏗️
         run: npm run build
         working-directory: ./frontend
+        env:
+          VITE_SPONSOR_SECRET: ${{ secrets.VITE_SPONSOR_SECRET }}
 
       - name: Deploy to GitHub Pages 🚀
         uses: peaceiris/actions-gh-pages@v4
