@@ -444,16 +444,30 @@ export default function App() {
         </div>
 
         <div className="bg-bauhaus-yellow dark:bg-yellow-500 p-2 md:p-6 flex items-center justify-center w-full md:w-auto gap-3 md:gap-4">
-          <button 
-            onClick={() => {
-              if (!isDemoMode) setShowDemoModal(true);
-              setIsDemoMode(!isDemoMode);
-              if (!walletAddress && !isDemoMode) setWalletAddress("G_DEMO_ACCOUNT_123");
-            }} 
-            className={`px-3 py-2 border-2 border-bauhaus-black dark:border-gray-900 font-black text-[8px] md:text-[10px] uppercase tracking-widest transition-colors ${isDemoMode ? 'bg-bauhaus-red text-white' : 'bg-bauhaus-white text-bauhaus-black hover:bg-gray-100'}`}
-          >
-            {isDemoMode ? 'Demo ON' : 'Demo Mode'}
-          </button>
+          <div className="flex flex-col gap-1">
+            <button 
+              onClick={() => {
+                if (!isDemoMode) setShowDemoModal(true);
+                setIsDemoMode(!isDemoMode);
+                if (!walletAddress && !isDemoMode) setWalletAddress("G_DEMO_ACCOUNT_123");
+              }} 
+              className={`px-3 py-2 border-2 border-bauhaus-black dark:border-gray-900 font-black text-[8px] md:text-[10px] uppercase tracking-widest transition-colors ${isDemoMode ? 'bg-bauhaus-red text-white' : 'bg-bauhaus-white text-bauhaus-black hover:bg-gray-100'}`}
+            >
+              {isDemoMode ? 'Demo ON' : 'Demo Mode'}
+            </button>
+            {isDemoMode && (
+              <button 
+                onClick={() => {
+                  const currentIndex = DEFAULT_MULTISIG.signers.findIndex(s => s.address === walletAddress);
+                  const nextIndex = (currentIndex + 1) % DEFAULT_MULTISIG.signers.length;
+                  setWalletAddress(DEFAULT_MULTISIG.signers[nextIndex].address);
+                }}
+                className="bg-bauhaus-blue text-white text-[7px] font-black uppercase tracking-tighter py-1 border-2 border-bauhaus-black hover:bg-blue-700 transition-all"
+              >
+                Cycle Role ↻
+              </button>
+            )}
+          </div>
           <button onClick={() => setIsDarkMode(!isDarkMode)} className="p-2 border-2 md:border-4 border-bauhaus-black dark:border-gray-900 rounded-full hover:bg-white/20 transition-colors shrink-0">
             {isDarkMode ? <Sun className="w-4 h-4 text-gray-900" /> : <Moon className="w-4 h-4 text-bauhaus-black" />}
           </button>
